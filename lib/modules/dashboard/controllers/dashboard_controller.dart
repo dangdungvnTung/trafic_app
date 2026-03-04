@@ -4,6 +4,7 @@ import 'package:pull_to_refresh_flutter3/pull_to_refresh_flutter3.dart';
 import 'package:traffic_app/widgets/custom_alert.dart';
 
 import '../../../data/models/traffic_post_model.dart';
+import '../../../data/repositories/follow_repository.dart';
 import '../../../data/repositories/traffic_post_repository.dart';
 import '../../../services/storage_service.dart';
 import '../widgets/report_bottom_sheet.dart';
@@ -11,7 +12,11 @@ import '../widgets/report_bottom_sheet.dart';
 class DashboardController extends GetxController {
   final TextEditingController searchController = TextEditingController();
   final TrafficPostRepository _postRepository = TrafficPostRepository();
+  final FollowRepository _followRepository = FollowRepository();
   final StorageService _storageService = Get.find<StorageService>();
+
+  /// ID của user hiện tại (dùng để ẩn nút follow trên bài viết của chính mình)
+  int? get currentUserId => _storageService.getUserId();
 
   final refreshController = RefreshController(initialRefresh: false);
   final ScrollController scrollController = ScrollController();
@@ -187,6 +192,29 @@ class DashboardController extends GetxController {
           isLiked: currentIsLiked,
           likes: currentLikes,
         );
+      }
+    }
+  }
+
+  /// Toggle follow/unfollow user với Optimistic Update
+  Future<void> toggleFollow(TrafficPostModel post) async {
+    final index = posts.indexWhere((p) => p.id == post.id);
+    if (index == -1 || post.userId == null) return;
+
+    final userId = int.tryParse(post.userId!);
+    if (userId == null) return;
+
+    final currentFollow = post.userFollow ?? false;
+
+    // Optimistic update: cập nhật UI ngay
+    posts[index] = post.copyWith(userFollow: !currentFollow);
+
+    try {
+      await _followRepository.followUser(userId);
+    } catch (_) {
+      // Rollback nếu API thất bại
+      if (index < posts.length) {
+        posts[index] = post.copyWith(userFollow: currentFollow);
       }
     }
   }

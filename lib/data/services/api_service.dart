@@ -1,8 +1,9 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:get/get.dart';
-import '../../services/storage_service.dart';
+
 import '../../routes/app_pages.dart';
+import '../../services/storage_service.dart';
 
 class ApiService {
   static final ApiService _instance = ApiService._internal();
@@ -16,8 +17,8 @@ class ApiService {
     _dio = Dio(
       BaseOptions(
         baseUrl: baseUrl,
-        connectTimeout: const Duration(seconds: 10),
-        receiveTimeout: const Duration(seconds: 10),
+        connectTimeout: const Duration(seconds: 30),
+        receiveTimeout: const Duration(seconds: 30),
         headers: {'Content-Type': 'application/json'},
       ),
     );
@@ -26,7 +27,8 @@ class ApiService {
       InterceptorsWrapper(
         onRequest: (options, handler) {
           final token = _storageService.getToken();
-          final isAuthEndpoint = options.path.contains('/auth/login') ||
+          final isAuthEndpoint =
+              options.path.contains('/auth/login') ||
               options.path.contains('/auth/register');
           if (token != null && token.isNotEmpty && !isAuthEndpoint) {
             options.headers['Authorization'] = 'Bearer $token';

@@ -11,13 +11,27 @@ class PostItem extends StatelessWidget {
   final TrafficPostModel post;
   final VoidCallback onLike;
   final VoidCallback onReport;
+  final VoidCallback onFollow;
+  final int? currentUserId;
 
   const PostItem({
     super.key,
     required this.post,
     required this.onLike,
     required this.onReport,
+    required this.onFollow,
+    this.currentUserId,
   });
+
+  /// Hiện badge "+" khi:
+  /// 1. API trả về follow == false
+  /// 2. Không phải bài viết của chính mình
+  bool get _showFollowBadge {
+    if (post.userFollow == true) return false;
+    final postUserId = int.tryParse(post.userId ?? '');
+    if (postUserId != null && postUserId == currentUserId) return false;
+    return true;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -75,43 +89,80 @@ class PostItem extends StatelessWidget {
           // User Info
           Row(
             children: [
-              ClipOval(
-                child: post.fullAvatarUrl != null
-                    ? CachedNetworkImage(
-                        imageUrl: post.fullAvatarUrl!,
-                        width: 40.w,
-                        height: 40.w,
-                        fit: BoxFit.cover,
-                        placeholder: (context, url) => Container(
-                          width: 40.w,
-                          height: 40.w,
-                          color: Colors.grey[300],
-                          child: LoadingWidget(width: 40.w, height: 40.w),
-                        ),
-                        errorWidget: (context, url, error) => Container(
-                          width: 40.w,
-                          height: 40.w,
-                          color: Colors.grey[300],
-                          child: Icon(
-                            Icons.person,
-                            size: 24.w,
-                            color: Colors.grey[600],
+              GestureDetector(
+                onTap: _showFollowBadge ? onFollow : null,
+                child: SizedBox(
+                  width: 46.w,
+                  height: 46.w,
+                  child: Stack(
+                    children: [
+                      ClipOval(
+                        child: post.fullAvatarUrl != null
+                            ? CachedNetworkImage(
+                                imageUrl: post.fullAvatarUrl!,
+                                width: 40.w,
+                                height: 40.w,
+                                fit: BoxFit.cover,
+                                placeholder: (context, url) => Container(
+                                  width: 40.w,
+                                  height: 40.w,
+                                  color: Colors.grey[300],
+                                  child: LoadingWidget(
+                                    width: 40.w,
+                                    height: 40.w,
+                                  ),
+                                ),
+                                errorWidget: (context, url, error) => Container(
+                                  width: 40.w,
+                                  height: 40.w,
+                                  color: Colors.grey[300],
+                                  child: Icon(
+                                    Icons.person,
+                                    size: 24.w,
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                              )
+                            : Container(
+                                width: 40.w,
+                                height: 40.w,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: Colors.grey[300],
+                                ),
+                                child: Icon(
+                                  Icons.person,
+                                  size: 24.w,
+                                  color: Colors.grey[600],
+                                ),
+                              ),
+                      ),
+                      // "+" badge – chỉ hiện khi chưa follow và không phải bài của mình
+                      if (_showFollowBadge)
+                        Positioned(
+                          right: 0,
+                          bottom: 0,
+                          child: Container(
+                            width: 24.w,
+                            height: 24.w,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF4D5DFA),
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: Colors.white,
+                                width: 1.5,
+                              ),
+                            ),
+                            child: Icon(
+                              Icons.add_rounded,
+                              color: Colors.white,
+                              size: 18.sp,
+                            ),
                           ),
                         ),
-                      )
-                    : Container(
-                        width: 40.w,
-                        height: 40.w,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Colors.grey[300],
-                        ),
-                        child: Icon(
-                          Icons.person,
-                          size: 24.w,
-                          color: Colors.grey[600],
-                        ),
-                      ),
+                    ],
+                  ),
+                ),
               ),
               SizedBox(width: 12.w),
               Text(
@@ -138,7 +189,7 @@ class PostItem extends StatelessWidget {
                 TextSpan(text: "${post.content} "),
                 if (post.hashtags?.isNotEmpty ?? false)
                   TextSpan(
-                    text: post.hashtags?.join(" ") ?? '',
+                    text: " #${post.hashtags?.join(" #") ?? ''}",
                     style: TextStyle(
                       fontWeight: FontWeight.w600,
                       color: const Color(0xFF4D5DFA),

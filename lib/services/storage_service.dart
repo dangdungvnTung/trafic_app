@@ -54,11 +54,13 @@ class StorageService extends GetxService {
 
   // User information storage
   Future<void> saveUserInfo({
+    int? userId,
     String? username,
     String? fullName,
     String? province,
     String? relativePhone,
   }) async {
+    if (userId != null) await _prefs.setInt('user_id', userId);
     if (username != null) await _prefs.setString('user_username', username);
     if (fullName != null) await _prefs.setString('user_fullName', fullName);
     if (province != null) await _prefs.setString('user_province', province);
@@ -71,6 +73,8 @@ class StorageService extends GetxService {
 
   String? getUsername() => _prefs.getString('user_username');
 
+  int? getUserId() => _prefs.getInt('user_id');
+
   String? getFullName() => _prefs.getString('user_fullName');
 
   String? getProvince() => _prefs.getString('user_province');
@@ -78,6 +82,7 @@ class StorageService extends GetxService {
   String? getRelativePhone() => _prefs.getString('user_relativePhone');
 
   Future<void> clearUserInfo() async {
+    await _prefs.remove('user_id');
     await _prefs.remove('user_username');
     await _prefs.remove('user_fullName');
     await _prefs.remove('user_province');

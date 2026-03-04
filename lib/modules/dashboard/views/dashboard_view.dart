@@ -188,6 +188,8 @@ class DashboardView extends GetView<DashboardController> {
                           post: post,
                           onLike: () => controller.toggleLike(post),
                           onReport: () => controller.reportPost(post),
+                          onFollow: () => controller.toggleFollow(post),
+                          currentUserId: controller.currentUserId,
                         ),
                       );
                       return Padding(

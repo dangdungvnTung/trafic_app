@@ -20,6 +20,22 @@ class CameraController extends GetxController {
   final imagePath = ''.obs;
   final contentController = TextEditingController();
 
+  final availableHashtags = ['ketxe', 'tainan', 'ngaplutnuoc', 'baocaotainan'];
+  final selectedHashtags = <String>[].obs;
+
+  void toggleHashtag(String tag) {
+    if (selectedHashtags.contains(tag)) {
+      selectedHashtags.remove(tag);
+    } else {
+      selectedHashtags.add(tag);
+    }
+  }
+
+  void clearImage() {
+    hasImage.value = false;
+    imagePath.value = '';
+  }
+
   final time = ''.obs;
   final location = 'camera_loading_location'.tr.obs;
   final currentLat = 0.0.obs;
@@ -162,7 +178,7 @@ class CameraController extends GetxController {
       'lat': currentLat.value,
       'lng': currentLng.value,
       'address': location.value,
-      'hashtags': <String>[], // Có thể parse từ content
+      'hashtags': List<String>.from(selectedHashtags),
       'status': 'TRAFFIC_REPORT',
       'filePath': imagePath.value,
     };
@@ -178,6 +194,7 @@ class CameraController extends GetxController {
     hasImage.value = false;
     imagePath.value = '';
     contentController.clear();
+    selectedHashtags.clear();
 
     // Upload trong isolate
     _uploadInIsolate(postData, homeController, imagePathTemp);

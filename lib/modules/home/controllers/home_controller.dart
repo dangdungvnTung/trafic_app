@@ -1,13 +1,11 @@
 import 'package:get/get.dart';
+import 'package:traffic_app/modules/dashboard/controllers/dashboard_controller.dart';
 import 'package:traffic_app/routes/app_pages.dart';
-
-import '../../dashboard/controllers/dashboard_controller.dart';
-import '../../map/controllers/map_controller.dart';
 
 class HomeController extends GetxController {
   // Bottom Navigation State
   var currentIndex = 0.obs;
-  bool _mapTabVisited = false;
+  final bool _mapTabVisited = false;
 
   // Upload Progress State
   var isUploading = false.obs;
@@ -22,14 +20,14 @@ class HomeController extends GetxController {
       return;
     }
     currentIndex.value = index;
-    if (index == 1 && !_mapTabVisited) {
-      _mapTabVisited = true;
-      Future.delayed(const Duration(milliseconds: 200), () {
-        if (Get.isRegistered<MapController>()) {
-          Get.find<MapController>().toggleMapType();
-        }
-      });
-    }
+    // if (index == 1 && !_mapTabVisited) {
+    //   _mapTabVisited = true;
+    //   Future.delayed(const Duration(milliseconds: 200), () {
+    //     if (Get.isRegistered<MapController>()) {
+    //       Get.find<MapController>().toggleMapType();
+    //     }
+    //   });
+    // }
   }
 
   void goToEditProfile() {

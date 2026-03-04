@@ -78,6 +78,7 @@ class LoginController extends GetxController {
 
       // Save user information
       await _storageService.saveUserInfo(
+        userId: loginResponse.id,
         username: loginResponse.username,
         fullName: loginResponse.fullName,
         province: loginResponse.province,

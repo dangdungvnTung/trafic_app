@@ -16,6 +16,7 @@ class TrafficPostModel {
   final int? likes;
   final bool? isLiked;
   final List<String>? hashtags;
+  final bool? userFollow;
 
   TrafficPostModel({
     this.id,
@@ -31,6 +32,7 @@ class TrafficPostModel {
     this.likes,
     this.isLiked,
     this.hashtags,
+    this.userFollow,
   });
 
   factory TrafficPostModel.fromJson(Map<String, dynamic> json) {
@@ -51,6 +53,7 @@ class TrafficPostModel {
           : null,
       userName: user?['fullname'] as String? ?? json['userName'] as String?,
       avatarUrl: user?['avatarUrl'] as String? ?? json['avatarUrl'] as String?,
+      userFollow: user?['follow'] as bool? ?? json['userFollow'] as bool?,
       imageUrls: json['images'] != null
           ? List<String>.from(json['images'] as List)
           : (json['imageUrls'] != null
@@ -80,6 +83,7 @@ class TrafficPostModel {
       if (likes != null) 'likes': likes,
       if (isLiked != null) 'isLiked': isLiked,
       if (hashtags != null) 'hashtags': hashtags,
+      if (userFollow != null) 'userFollow': userFollow,
     };
   }
 
@@ -131,6 +135,7 @@ class TrafficPostModel {
     int? likes,
     bool? isLiked,
     List<String>? hashtags,
+    bool? userFollow,
   }) {
     return TrafficPostModel(
       id: id ?? this.id,
@@ -146,6 +151,7 @@ class TrafficPostModel {
       likes: likes ?? this.likes,
       isLiked: isLiked ?? this.isLiked,
       hashtags: hashtags ?? this.hashtags,
+      userFollow: userFollow ?? this.userFollow,
     );
   }
 }

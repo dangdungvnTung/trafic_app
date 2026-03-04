@@ -10,12 +10,36 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:traffic_app/widgets/custom_alert.dart';
 
+import '../../../data/models/traffic_post_model.dart';
+import '../../../data/repositories/follow_repository.dart';
+import '../../../data/repositories/traffic_post_repository.dart';
+import '../../../services/storage_service.dart';
+import '../widgets/post_bottom_sheet.dart';
+
+/// Hashtags được đánh dấu trên bản đồ – đồng bộ với CameraController
+const List<String> kMapHashtags = [
+  'ketxe',
+  'giaothong',
+  'tainan',
+  'ngaplutnuoc',
+  'suachua',
+];
+
 class MapController extends GetxController {
   late GoogleMapController mapController;
   final Completer<GoogleMapController> _controller = Completer();
   final TextEditingController searchController = TextEditingController();
   final Dio _dio = Dio();
   final String _apiKey = dotenv.env['GOOGLE_MAPS_API_KEY'] ?? '';
+
+  final _postRepository = TrafficPostRepository();
+  final _followRepository = FollowRepository();
+  final _storageService = Get.find<StorageService>();
+
+  int? get currentUserId => _storageService.getUserId();
+
+  // Tagged posts (có hashtag khớp kMapHashtags)
+  final taggedPosts = <TrafficPostModel>[].obs;
 
   final LatLng _center = const LatLng(
     21.028511,
@@ -34,7 +58,7 @@ class MapController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    _addDummyMarkers();
+    loadTaggedPosts();
     _addDummyPolyline();
     _checkLocationPermission();
   }
@@ -180,42 +204,133 @@ class MapController extends GetxController {
     }
   }
 
-  void _addDummyMarkers() {
-    markers.addAll([
-      Marker(
-        markerId: const MarkerId('traffic_jam_1'),
-        position: const LatLng(21.029511, 105.805817),
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
-        infoWindow: InfoWindow(title: 'map_traffic_jam_title'.tr),
-        onTap: () {
-          _showMarkerDetails(
-            'map_traffic_jam_title'.tr,
-            'map_traffic_jam_desc'.tr,
-          );
-        },
-      ),
-      Marker(
-        markerId: const MarkerId('police_1'),
-        position: const LatLng(21.027511, 105.803817),
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
-        infoWindow: InfoWindow(title: 'map_police_checkpoint_title'.tr),
-        onTap: () {
-          _showMarkerDetails(
-            'map_police_checkpoint_title'.tr,
-            'map_police_checkpoint_desc'.tr,
-          );
-        },
-      ),
-      Marker(
-        markerId: const MarkerId('accident_1'),
-        position: const LatLng(21.028011, 105.806817),
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange),
-        infoWindow: InfoWindow(title: 'map_accident_title'.tr),
-        onTap: () {
-          _showMarkerDetails('map_accident_title'.tr, 'map_accident_desc'.tr);
-        },
-      ),
-    ]);
+  /// Load tất cả bài viết, lọc theo hashtag, tạo marker
+  Future<void> loadTaggedPosts() async {
+    try {
+      final posts = await _postRepository.getPosts(
+        location: '',
+        page: 0,
+        size: 50,
+      );
+
+      // Lọc bài có hashtag nằm trong kMapHashtags và có tọa độ hợp lệ
+      final filtered = posts.where((p) {
+        if (p.location == null) return false;
+        final tags = p.hashtags?.map((t) => t.toLowerCase()).toList() ?? [];
+        return tags.any((t) => kMapHashtags.contains(t));
+      }).toList();
+
+      taggedPosts.value = filtered;
+      _buildPostMarkers();
+    } catch (e) {
+      debugPrint('MapController loadTaggedPosts error: $e');
+    }
+  }
+
+  void _buildPostMarkers() {
+    // Xóa marker bài viết cũ, giữ search_result nếu có
+    markers.removeWhere((m) => m.markerId.value.startsWith('post_'));
+
+    for (final post in taggedPosts) {
+      final loc = post.location;
+      if (loc == null) continue;
+
+      // Màu marker theo hashtag đầu tiên khớp
+      final matchingTags = (post.hashtags ?? [])
+          .map((t) => t.toLowerCase())
+          .where((t) => kMapHashtags.contains(t))
+          .toList();
+      final firstTag = matchingTags.isNotEmpty ? matchingTags.first : '';
+      final displayTag = firstTag.isNotEmpty
+          ? '#$firstTag'
+          : ((post.hashtags?.isNotEmpty ?? false) ? post.hashtags!.first : '');
+
+      markers.add(
+        Marker(
+          markerId: MarkerId('post_${post.id}'),
+          position: LatLng(loc.lat, loc.lng),
+          icon: BitmapDescriptor.defaultMarkerWithHue(_hueForTag(firstTag)),
+          infoWindow: InfoWindow(
+            title: displayTag,
+            snippet: post.userName ?? '',
+          ),
+          onTap: () => _showPostBottomSheet(post),
+        ),
+      );
+    }
+  }
+
+  double _hueForTag(String tag) {
+    switch (tag) {
+      case 'ketxe':
+        return BitmapDescriptor.hueRed;
+      case 'tainan':
+        return BitmapDescriptor.hueOrange;
+      case 'ngaplutnuoc':
+        return BitmapDescriptor.hueCyan;
+      case 'suachua':
+        return BitmapDescriptor.hueYellow;
+      case 'giaothong':
+      default:
+        return BitmapDescriptor.hueViolet;
+    }
+  }
+
+  void _showPostBottomSheet(TrafficPostModel initialPost) {
+    PostBottomSheet.show(
+      post: initialPost,
+      currentUserId: currentUserId,
+      onLike: _toggleLike,
+      onFollow: _toggleFollow,
+      onReport: _reportPost,
+    );
+  }
+
+  Future<void> _toggleLike(Rx<TrafficPostModel> postRx) async {
+    final p = postRx.value;
+    if (p.id == null) return;
+    final wasLiked = p.isLiked ?? false;
+    final prevLikes = p.likes ?? 0;
+    postRx.value = p.copyWith(
+      isLiked: !wasLiked,
+      likes: wasLiked ? prevLikes - 1 : prevLikes + 1,
+    );
+    _syncToTaggedPosts(postRx.value);
+    try {
+      await _postRepository.likePost(p.id!);
+    } catch (_) {
+      postRx.value = p.copyWith(isLiked: wasLiked, likes: prevLikes);
+      _syncToTaggedPosts(postRx.value);
+    }
+  }
+
+  Future<void> _toggleFollow(Rx<TrafficPostModel> postRx) async {
+    final p = postRx.value;
+    final userId = int.tryParse(p.userId ?? '');
+    if (userId == null) return;
+    final wasFollowing = p.userFollow ?? false;
+    postRx.value = p.copyWith(userFollow: !wasFollowing);
+    _syncToTaggedPosts(postRx.value);
+    try {
+      await _followRepository.followUser(userId);
+    } catch (_) {
+      postRx.value = p.copyWith(userFollow: wasFollowing);
+      _syncToTaggedPosts(postRx.value);
+    }
+  }
+
+  void _reportPost(TrafficPostModel post) {
+    if (post.id == null) return;
+    _postRepository
+        .reportPost(postId: post.id!, reason: 'Nội dung không phù hợp')
+        .then((_) => CustomAlert.showSuccess('Đã báo cáo bài viết'))
+        .catchError((e) => CustomAlert.showError(e.toString()));
+  }
+
+  /// Đồng bộ thay đổi bài viết vào danh sách taggedPosts
+  void _syncToTaggedPosts(TrafficPostModel updated) {
+    final idx = taggedPosts.indexWhere((p) => p.id == updated.id);
+    if (idx != -1) taggedPosts[idx] = updated;
   }
 
   void _addDummyPolyline() {
@@ -230,45 +345,6 @@ class MapController extends GetxController {
         ],
         color: Colors.blue,
         width: 5,
-      ),
-    );
-  }
-
-  void _showMarkerDetails(String title, String description) {
-    Get.bottomSheet(
-      Container(
-        padding: const EdgeInsets.all(20),
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.only(
-            topLeft: Radius.circular(20),
-            topRight: Radius.circular(20),
-          ),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 10),
-            Text(description, style: const TextStyle(fontSize: 16)),
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () => Get.back(),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF4D5DFA),
-                  foregroundColor: Colors.white,
-                ),
-                child: Text('map_close'.tr),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
